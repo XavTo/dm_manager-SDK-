@@ -228,21 +228,59 @@ public Action OnPlayerDisconnect(Event event, const char[] name, bool dontBroadc
     return Plugin_Continue;
 }
 
+void getArgs(const char[] string, char args[5][32])
+{
+    int i = 0;
+    int j = 0;
+    int k = 0;
+
+    while (string[i] != '\0') {
+        if (string[i] == ' ') {
+            while (string[i] == ' ')
+                i++;
+            break;
+        }
+        i++;
+    }
+    if (string[i] == '\0')
+        return;
+    while (string[i] != '\0') {
+        if (string[i] == ' ') {
+            j++;
+            k = 0;
+            while (string[i] == ' ')
+                i++;
+        } else {
+            args[j][k] = string[i];
+            k++;
+            i++;
+        }
+    }
+}
+
 public Action OnClientSayCommand(int client, const char[] command, const char[] sArgs)
 {
-    if (strcmp(sArgs, "/weapon") == 0 || strcmp(sArgs, "/weapons") == 0 || strcmp(sArgs, "/w") == 0 || strcmp(sArgs, "/gun") == 0 || strcmp(sArgs, "/guns") == 0) {
+    char args[5][32] = {"\0", "\0", "\0", "\0", "\0"};
+
+    if (strcmp(sArgs, "/weapon", false) == 0 || strcmp(sArgs, "/weapons", false) == 0 || strcmp(sArgs, "/w", false) == 0 || strcmp(sArgs, "/gun", false) == 0
+        || strcmp(sArgs, "/guns", false) == 0 || strcmp(sArgs, "/g", false) == 0) {
         PrintToServer("Display weapon menu");
         weaponMenu.Display(client, MENU_DISPLAY_TIME);
         return Plugin_Handled;
     }
-    if (strcmp(sArgs, "/spawn") == 0) {
+    if (strcmp(sArgs, "/spawn", false) == 0) {
         PrintToServer("Display spawn menu");
         spawnMenu.Display(client, MENU_DISPLAY_TIME);
         return Plugin_Handled;
     }
-    if (strcmp(sArgs, "/bot") == 0 || strcmp(sArgs, "/bots") == 0 || strcmp(sArgs, "/b") == 0) {
+    if (strcmp(sArgs, "/bot", false) == 0 || strcmp(sArgs, "/bots", false) == 0 || strcmp(sArgs, "/b", false) == 0) {
         PrintToServer("Display bot menu");
         botMenu.Display(client, MENU_DISPLAY_TIME);
+        return Plugin_Handled;
+    }
+    if (strncmp(sArgs, "/stats", 6, false) == 0 || strncmp(sArgs, "/s", 2, false) == 0 || strncmp(sArgs, "/stat", 5, false) == 0) {
+        getArgs(sArgs, args);
+        displayStat(client, args);
         return Plugin_Handled;
     }
     return Plugin_Continue;

@@ -2,6 +2,7 @@
 #include "dmmanagerhandleevent.sp"
 #include "dmmanagerhandledb.sp"
 #include "dmmanagerhandlemenu.sp"
+#include "dmmanagerhandlestat.sp"
 
 public Plugin:myinfo =
 {
@@ -20,4 +21,5 @@ public void OnPluginStart()
     createMenuWeapon();
     createMenuSpawn();
     myHookEvent();
+    SetHudTextParams(0.01, 0.5, 10.0, 0, 0, 128, 128, 0, 1.0, 0.3, 2.0);
 }
