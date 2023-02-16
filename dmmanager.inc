@@ -7,6 +7,7 @@
 #include <sdktools>
 #include <sdkhooks>
 #include <cstrike>
+#include <regex>
 
 #define MAX_PLAYER 20
 #define MAX_BOTNAME_LENGTH 32
@@ -38,6 +39,13 @@ enum struct UsersInfo
     float spawnPoint[3];    
     int time;
     bool assign;
+}
+
+enum struct WeaponInfo
+{
+    char name[SIZE_STRING_DEFAULT];
+    int kills;
+    int hs;
 }
 
 BotInfo botStorage[MAX_PLAYER];
