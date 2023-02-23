@@ -15,7 +15,8 @@
 #define GLOCK_AMMO 20
 #define USP_AMMO 12
 #define P2000_AMMO 13
-#define MENU_DISPLAY_TIME 30
+#define MENU_DISPLAY_TIME 20
+#define NB_RANK 16
 #define NAME_DATABASE "new_database"
 
 enum struct BotInfo
@@ -38,6 +39,7 @@ enum struct UsersInfo
     bool spawnSet;
     float spawnPoint[3];    
     int time;
+    int rankIdPic;
     bool assign;
 }
 
@@ -50,7 +52,14 @@ enum struct WeaponInfo
 
 BotInfo botStorage[MAX_PLAYER];
 UsersInfo usersStorage[MAX_PLAYER];
-Menu weaponMenu;
-Menu spawnMenu;
+Menu weaponMenu = null;
+Menu spawnMenu = null;
 Menu botMenu;
+bool onlyHs;
+bool onlyPistol;
+int add_oHealth;
+int add_oArmor;
+int add_oRank;
+char m_cFilePath[PLATFORM_MAX_PATH];
+KeyValues kv;
 Handle db;
