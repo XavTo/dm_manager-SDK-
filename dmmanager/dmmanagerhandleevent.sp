@@ -1,4 +1,5 @@
 #include <dmmanager>
+#include <dmmanagermappos>
 
 void PrintUsersStorage()
 {
@@ -51,9 +52,8 @@ int getIndId(int clientId)
     return -1;
 }
 
-public Action checkSteamId(Handle timer, int userId)
+public Action checkSteamId(Handle timer, int botId)
 {
-    int botId = GetClientOfUserId(userId);
     char buffer[32];
 
     if (botId == 0)
@@ -61,46 +61,62 @@ public Action checkSteamId(Handle timer, int userId)
     if (!IsFakeClient(botId)) {
         GetClientAuthId(botId, AuthId_SteamID64, buffer, sizeof(buffer));
         if (StrEqual(buffer, "") || StrEqual(buffer, "STEAM_ID_PENDING") || StrEqual(buffer, "STEAM_ID_STOP_IGNORING_RETVALS")) {
-            PrintToServer("SteamId not found");
+            PrintToServer("[DM_MANAGER]SteamId not found");
             KickClient(botId, "SteamId not found");
             return Plugin_Continue;
         }
-        PrintToServer("SteamId found");
-        manageUserInDb(buffer, botId, userId);
+        PrintToServer("[DM_MANAGER]SteamId found");
+        manageUserInDb(buffer, botId);
     }
     return Plugin_Continue;
 }
 
-public Action manageConnexion(Handle timer, int userId)
+void handleTeleport(int clientId, float spawnPoint[3], float spawnAngle[3], int spawnPos)
 {
-    int botId = GetClientOfUserId(userId);
-    char buffer[32];
+    int rand = GetRandomInt(0, 4);
+    int ind = IsFakeClient(clientId) ? getIndIdBot(clientId) : getIndId(clientId);
 
-    if (botId == 0)
-        return Plugin_Continue;
-    if (botId > MAX_PLAYER + 1) {
-        PrintToServer("Bot id %d is too high", botId);
-        return Plugin_Continue;
+    TeleportEntity(clientId, spawnPoint, spawnAngle, NULL_VECTOR);
+    if (IsFakeClient(clientId)) {
+        botStorage[ind].spawnPoint[0] = dust2_Pos[spawnPos + rand].x;
+        botStorage[ind].spawnPoint[1] = dust2_Pos[spawnPos + rand].y;
+        botStorage[ind].spawnPoint[2] = dust2_Pos[spawnPos + rand].z;
+        return;
     }
-    if (!IsFakeClient(botId)) {
-        GetClientAuthId(botId, AuthId_SteamID64, buffer, sizeof(buffer));
-        if (StrEqual(buffer, "") || StrEqual(buffer, "STEAM_ID_PENDING") || StrEqual(buffer, "STEAM_ID_STOP_IGNORING_RETVALS")) {
-            PrintToServer("SteamId not found");
-            CreateTimer(10.0, checkSteamId, userId);
-            return Plugin_Continue;
-        }
-        manageUserInDb(buffer, botId, userId);
-        return Plugin_Continue;
+    usersStorage[ind].spawnPoint[0] = dust2_Pos[spawnPos + rand].x;
+    usersStorage[ind].spawnPoint[1] = dust2_Pos[spawnPos + rand].y;
+    usersStorage[ind].spawnPoint[2] = dust2_Pos[spawnPos + rand].z;
+    usersStorage[ind].spawnAngle[0] = dust2_Pos[spawnPos + rand].ang_x;
+    usersStorage[ind].spawnAngle[1] = dust2_Pos[spawnPos + rand].ang_y;
+    usersStorage[ind].spawnAngle[2] = dust2_Pos[spawnPos + rand].ang_z;
+}
+
+void manageRespawnWeapon(int clientId, int ind)
+{
+    onlyPistol ? SetEntProp(clientId, Prop_Send, "m_ArmorValue", 0) : SetEntProp(clientId, Prop_Send, "m_ArmorValue", 100);
+    if (strcmp(usersStorage[ind].mainWeapon, "") != 0) {
+        GivePlayerItem(clientId, usersStorage[ind].mainWeapon);
+        usersStorage[ind].secondaryWeaponAmmo = GetEntProp(GetEntPropEnt(clientId, Prop_Data, "m_hMyWeapons", 2), Prop_Send, "m_iClip1", 1);
     }
-    for (int i = 0; i < MAX_PLAYER; i++) {
-        if (botStorage[i].assign == false) {
-            botStorage[i].assign = true;
-            botStorage[i].botId = botId;
-            SetClientName(botId, botStorage[i].name);
-            break;
-        }
+    if (strcmp(usersStorage[ind].secondaryWeapon, "") != 0) {
+        if (GetEntPropEnt(clientId, Prop_Data, "m_hMyWeapons", 1) != -1)
+            RemovePlayerItem(clientId, GetEntPropEnt(clientId, Prop_Data, "m_hMyWeapons", 1));
+        GivePlayerItem(clientId, usersStorage[ind].secondaryWeapon);
+        if (GetEntPropEnt(clientId, Prop_Data, "m_hMyWeapons", 1) != -1 && GetEntProp(GetEntPropEnt(clientId, Prop_Data, "m_hMyWeapons", 1), Prop_Send, "m_iClip1", 1) != -1)
+            usersStorage[ind].secondaryWeaponAmmo = GetEntProp(GetEntPropEnt(clientId, Prop_Data, "m_hMyWeapons", 1), Prop_Send, "m_iClip1", 1);
+        return;
     }
-    return Plugin_Continue;
+    if (GetClientTeam(clientId) != 0 && strcmp(usersStorage[ind].mainWeapon, "") == 0) {
+        GetClientTeam(clientId) == CS_TEAM_T ? strcopy(usersStorage[ind].secondaryWeapon, SIZE_STRING_DEFAULT, "weapon_glock") :
+            strcopy(usersStorage[ind].secondaryWeapon, SIZE_STRING_DEFAULT, "weapon_usp_silencer");
+        usersStorage[ind].secondaryWeaponAmmo = GetClientTeam(clientId) == CS_TEAM_T ?
+            GLOCK_AMMO : (strcmp(usersStorage[ind].secondaryWeapon, "weapon_usp_silencer") == 0 ? P2000_AMMO : USP_AMMO);
+    }
+    if (checkDefaultWeapon(ind) && strcmp(usersStorage[ind].mainWeapon, "") == 0) {
+        weaponMenu.Display(clientId, MENU_DISPLAY_TIME);
+    }
+    if (usersStorage[ind].spawnSet)
+        SetEntPropVector(usersStorage[ind].clientId, Prop_Data, "m_vecOrigin", usersStorage[ind].spawnPoint);
 }
 
 public Action OnPlayerSpawn(Event event, const char[] name, bool dontBroadcast)
@@ -108,53 +124,68 @@ public Action OnPlayerSpawn(Event event, const char[] name, bool dontBroadcast)
     int clientId = GetClientOfUserId(GetEventInt(event, "userid"));
     int ind = getIndId(clientId);
     int indBot = getIndIdBot(clientId);
-
-    if (clientId == 0) {
-        PrintToServer("Client id is 0");
+    float angle[3] = {0.0};
+    
+    if (clientId <= 0) {
+        PrintToServer("[DM_MANAGER]Client id is 0");
         return Plugin_Continue;
     }
     if (IsFakeClient(clientId)) {
+        if (GetEntPropEnt(clientId, Prop_Data, "m_hMyWeapons", 2) != -1)
+            CS_DropWeapon(clientId, GetEntPropEnt(clientId, Prop_Data, "m_hMyWeapons", 2), false, false);
+        onlyPistol ? SetEntProp(clientId, Prop_Send, "m_ArmorValue", 0) : SetEntProp(clientId, Prop_Send, "m_ArmorValue", 100);
         if (GetClientTeam(clientId) == CS_TEAM_T) {
-            GivePlayerItem(clientId, "weapon_ak47");
+            if (onlyPistol) {
+                RemovePlayerItem(clientId, GetEntPropEnt(clientId, Prop_Data, "m_hMyWeapons", 1));
+                GivePlayerItem(clientId, "weapon_glock");
+            } else {
+                GivePlayerItem(clientId, "weapon_ak47");
+            }
             if (indBot == -1)
                 return Plugin_Continue;
-            botStorage[indBot].weapon = "weapon_ak47";
+            botStorage[indBot].weapon = onlyPistol ? "weapon_glock" : "weapon_ak47";
         }
         else {
-            GivePlayerItem(clientId, "weapon_m4a1");
+            if (onlyPistol) {
+                RemovePlayerItem(clientId, GetEntPropEnt(clientId, Prop_Data, "m_hMyWeapons", 1));
+                GivePlayerItem(clientId, "weapon_usp_silencer");
+            } else {
+                GivePlayerItem(clientId, "weapon_m4a1");
+            }
             if (indBot == -1)
                 return Plugin_Continue;
-            botStorage[indBot].weapon = "weapon_m4a1";
+            botStorage[indBot].weapon = onlyPistol ? "weapon_usp_silencer" : "weapon_m4a1";
         }
     } else if (ind != -1) {
-        if (strcmp(usersStorage[ind].mainWeapon, "") != 0)
-            GivePlayerItem(clientId, usersStorage[ind].mainWeapon);
-        if (strcmp(usersStorage[ind].secondaryWeapon, "") != 0) {
-            RemovePlayerItem(clientId, GetEntPropEnt(clientId, Prop_Data, "m_hMyWeapons", 1));
-            GivePlayerItem(clientId, usersStorage[ind].secondaryWeapon);
-        } 
-        if (GetClientTeam(clientId) != 0 && strcmp(usersStorage[ind].mainWeapon, "") == 0) {
-            GetClientTeam(clientId) == CS_TEAM_T ? strcopy(usersStorage[ind].secondaryWeapon, SIZE_STRING_DEFAULT, "weapon_glock") :
-                strcopy(usersStorage[ind].secondaryWeapon, SIZE_STRING_DEFAULT, "weapon_hkp2000");
-            usersStorage[ind].secondaryWeaponAmmo = GetClientTeam(clientId) == CS_TEAM_T ?
-                GLOCK_AMMO : (strcmp(usersStorage[ind].secondaryWeapon, "weapon_hkp2000") == 0 ? P2000_AMMO : USP_AMMO);
-        }
-        if (checkDefaultWeapon(ind) && strcmp(usersStorage[ind].mainWeapon, "") == 0) {
-            weaponMenu.Display(clientId, MENU_DISPLAY_TIME);
-        }
-        if (usersStorage[ind].spawnSet)
-            SetEntPropVector(usersStorage[ind].clientId, Prop_Data, "m_vecOrigin", usersStorage[ind].spawnPoint);
+        manageRespawnWeapon(clientId, ind);
     } else {
         PrintUsersStorage();
         weaponMenu.Display(clientId, MENU_DISPLAY_TIME);
     }
+    if (!IsFakeClient(clientId) && ind != -1 && usersStorage[ind].spawnSet)
+        handleTeleport(clientId, usersStorage[ind].spawnPoint, usersStorage[ind].spawnAngle, usersStorage[ind].spawnPos);
+    if (IsFakeClient(clientId) && indBot != -1 && botStorage[indBot].spawnSet)
+        handleTeleport(clientId, botStorage[indBot].spawnPoint, angle, botStorage[indBot].spawnPos);
     return Plugin_Continue;
 }
 
-public Action OnPlayerConnect(Event event, const char[] name, bool dontBroadcast)
+void resetWeaponArmor(int killerId)
 {
-    CreateTimer(1.0, manageConnexion, GetEventInt(event, "userid"));
-    return Plugin_Continue;
+    char weaponName[32];
+
+    SetEntProp(killerId, Prop_Send, "m_iHealth", 100);
+    onlyPistol ? SetEntProp(killerId, Prop_Send, "m_ArmorValue", 0) : SetEntProp(killerId, Prop_Send, "m_ArmorValue", 100);
+    GetClientWeapon(killerId, weaponName, sizeof(weaponName));
+    if (strcmp(weaponName, usersStorage[getIndId(killerId)].mainWeapon) == 0) {
+        SetEntProp(GetEntPropEnt(killerId, Prop_Send, "m_hMyWeapons", 2), Prop_Send, "m_iClip1", usersStorage[getIndId(killerId)].mainWeaponAmmo + 1);
+        if (strcmp(usersStorage[getIndId(killerId)].secondaryWeapon, "") != 0)
+            SetEntProp(GetEntPropEnt(killerId, Prop_Send, "m_hMyWeapons", 1), Prop_Send, "m_iClip1", usersStorage[getIndId(killerId)].secondaryWeaponAmmo);
+    } else {
+        SetEntProp(GetEntPropEnt(killerId, Prop_Send, "m_hMyWeapons", 1), Prop_Send, "m_iClip1", usersStorage[getIndId(killerId)].secondaryWeaponAmmo + 1);
+        if (strcmp(usersStorage[getIndId(killerId)].mainWeapon, "") != 0)
+            SetEntProp(GetEntPropEnt(killerId, Prop_Send, "m_hMyWeapons", 2), Prop_Send, "m_iClip1", usersStorage[getIndId(killerId)].mainWeaponAmmo);
+    }
+    setRanks(killerId);
 }
 
 public Action OnPlayerDeath(Event event, const char[] name, bool dontBroadcast)
@@ -168,7 +199,7 @@ public Action OnPlayerDeath(Event event, const char[] name, bool dontBroadcast)
     char error[128];
     char weaponName[32];
     
-    if (killerId == 0 || victimId == 0 || (IsFakeClient(killerId) && IsFakeClient(victimId)) || (idUserDead == idUserKiller))
+    if (killerId <= 0 || victimId <= 0 || (IsFakeClient(killerId) && IsFakeClient(victimId)) || (idUserDead == idUserKiller))
         return Plugin_Continue;
     GetClientWeapon(killerId, weaponName, sizeof(weaponName));
     db = SQL_Connect(NAME_DATABASE, false, error, sizeof(error));
@@ -181,14 +212,9 @@ public Action OnPlayerDeath(Event event, const char[] name, bool dontBroadcast)
         Format(buffer, sizeof(buffer), "INSERT INTO kills (weapon, killer_id, victim_id, headshot) VALUES ('%s', %d, %d, %d)",
             weaponName, idUserKiller, (idUserDead != -1 ? idUserDead : 0), headshot);
         SQL_TQuery(db, callbackFuncDefault, buffer, 0, DBPrio_Normal);
-        SetEntProp(killerId, Prop_Send, "m_iHealth", 100);
-        SetEntProp(GetEntPropEnt(killerId, Prop_Send, "m_hMyWeapons", 2), Prop_Send, "m_iClip1",
-            usersStorage[getIndId(killerId)].mainWeaponAmmo + (strcmp(weaponName, usersStorage[getIndId(killerId)].mainWeapon) == 0 ? 1 : 0));
-        if (strcmp(usersStorage[getIndId(killerId)].secondaryWeapon, "") != 0) {
-            SetEntProp(GetEntPropEnt(killerId, Prop_Send, "m_hMyWeapons", 1), Prop_Send, "m_iClip1",
-                usersStorage[getIndId(killerId)].secondaryWeaponAmmo + (strcmp(weaponName, usersStorage[getIndId(killerId)].secondaryWeapon) == 0 ? 1 : 0));
-        }
-        SetEntProp(killerId, Prop_Send, "m_ArmorValue", 100);
+        resetWeaponArmor(killerId);
+        if (headshot == 1)
+            EmitSoundToClient(killerId, SOUND_HEADSHOT);
     }
     if (!IsFakeClient(victimId) && idUserDead != -1) {
         if (headshot == 1)
@@ -215,17 +241,111 @@ public Action OnPlayerDisconnect(Event event, const char[] name, bool dontBroadc
 
     if (dbInd == -1 || ind == -1 || IsFakeClient(clientId) || clientId == 0)
         return Plugin_Continue;
-    PrintToServer("Disconnecting time : %d - %d", GetTime(), usersStorage[ind].time);
+    PrintToServer("[DM_MANAGER]Disconnecting time : %d - %d", GetTime(), usersStorage[ind].time);
     totalTime = (GetTime() - usersStorage[ind].time) / 60.0;
+    usersStorage[ind].assign = false;
+    usersStorage[ind].rankIdPic = -1;
     db = SQL_Connect(NAME_DATABASE, false, error, sizeof(error));
     if (db == null) {
         LogToFile("error", "Error while connecting to database: %s", error);
-        PrintToServer("Can't save your data");
+        PrintToServer("[DM_MANAGER]Can't save your data");
         return Plugin_Continue;
     }
     Format(query, sizeof(query), "UPDATE users SET total_time = total_time + %f, last_seen = CURRENT_TIMESTAMP WHERE id = %d", totalTime, dbInd);
     SQL_TQuery(db, callbackFuncDefault, query, 0, DBPrio_Normal);
     return Plugin_Continue;
+}
+
+public Action OnRoundStart(Event event, const char[] name, bool dontBroadcast)
+{
+    PrintToServer("[DM_MANAGER]Round start");
+    if (onlyPistol) {
+        onlyPistol = false;
+        PrintCenterTextAll("All weapons allowed");
+    } else if (onlyHs) {
+        onlyHs = false;
+        onlyPistol = true;
+        PrintCenterTextAll("Only pistol allowed");
+    } else {
+        onlyHs = true;
+        PrintCenterTextAll("Only headshot allowed");
+    }
+    for (int i = 0; i < MAX_PLAYER; i++) {
+        usersStorage[i].mainWeapon = "";
+        usersStorage[i].mainWeaponAmmo = 0;
+        if (usersStorage[i].assign && IsPlayerAlive(usersStorage[i].clientId))
+            CS_RespawnPlayer(usersStorage[i].clientId);
+        if (botStorage[i].assign && IsPlayerAlive(botStorage[i].botId))
+            CS_RespawnPlayer(botStorage[i].botId);
+    }
+    createMenuWeapon();
+    return Plugin_Continue;
+}
+
+public Action OnPlayerHurt(Event event, const char[] name, bool dontBroadcast)
+{
+    if (!onlyHs)
+        return Plugin_Continue;
+    int victim = GetClientOfUserId(GetEventInt(event, "userid"));
+    int attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
+    char weaponName[32];
+
+    if (attacker <= 0 || victim <= 0 || attacker == victim)
+        return Plugin_Continue;
+    GetClientWeapon(attacker, weaponName, sizeof(weaponName));
+    if (strncmp(weaponName, "weapon_knife", 12) == 0)
+        return Plugin_Continue;
+    if (event.GetInt("hitgroup") != 1) {
+        SetEntData(victim, add_oHealth, (GetEventInt(event, "dmg_health") + GetEventInt(event, "health")), 4, true);
+        SetEntData(victim, add_oArmor, 100, 4, true);
+        return Plugin_Changed;
+    }
+    return Plugin_Continue;
+}
+
+public Action handleBotConnect(Handle timer, int userId)
+{
+    int botId = GetClientOfUserId(userId);
+
+    if (!IsFakeClient(botId))
+        return Plugin_Continue;
+    for (int i = 0; i < MAX_PLAYER; i++) {
+        if (!botStorage[i].assign) {
+            botStorage[i].assign = true;
+            botStorage[i].botId = botId;
+            SetClientName(botId, botStorage[i].name);
+            return Plugin_Continue;
+        }
+    }
+    return Plugin_Continue;
+}
+
+public Action OnPlayerConnect(Event event, const char[] name, bool dontBroadcast)
+{
+    CreateTimer(1.5, handleBotConnect, GetEventInt(event, "userid"));
+    return Plugin_Continue;
+}
+
+public OnClientPostAdminCheck(int botId)
+{
+    char buffer[32];
+
+    if (botId == 0 || IsFakeClient(botId))
+        return;
+    if (botId > MAX_PLAYER + 1) {
+        PrintToServer("[DM_MANAGER]Bot id %d is too high", botId);
+        return;
+    }
+    if (!IsFakeClient(botId)) {
+        GetClientAuthId(botId, AuthId_SteamID64, buffer, sizeof(buffer));
+        if (StrEqual(buffer, "") || StrEqual(buffer, "STEAM_ID_PENDING") || StrEqual(buffer, "STEAM_ID_STOP_IGNORING_RETVALS")) {
+            PrintToServer("[DM_MANAGER]SteamId not found");
+            CreateTimer(10.0, checkSteamId, botId);
+            return;
+        }
+        manageUserInDb(buffer, botId);
+        return;
+    }
 }
 
 void getArgs(const char[] string, char args[5][32])
@@ -264,17 +384,17 @@ public Action OnClientSayCommand(int client, const char[] command, const char[] 
 
     if (strcmp(sArgs, "/weapon", false) == 0 || strcmp(sArgs, "/weapons", false) == 0 || strcmp(sArgs, "/w", false) == 0 || strcmp(sArgs, "/gun", false) == 0
         || strcmp(sArgs, "/guns", false) == 0 || strcmp(sArgs, "/g", false) == 0) {
-        PrintToServer("Display weapon menu");
+        PrintToServer("[DM_MANAGER]Display weapon menu");
         weaponMenu.Display(client, MENU_DISPLAY_TIME);
         return Plugin_Handled;
     }
     if (strcmp(sArgs, "/spawn", false) == 0) {
-        PrintToServer("Display spawn menu");
+        PrintToServer("[DM_MANAGER]Display spawn menu");
         spawnMenu.Display(client, MENU_DISPLAY_TIME);
         return Plugin_Handled;
     }
     if (strcmp(sArgs, "/bot", false) == 0 || strcmp(sArgs, "/bots", false) == 0 || strcmp(sArgs, "/b", false) == 0) {
-        PrintToServer("Display bot menu");
+        PrintToServer("[DM_MANAGER]Display bot menu");
         botMenu.Display(client, MENU_DISPLAY_TIME);
         return Plugin_Handled;
     }
@@ -288,9 +408,11 @@ public Action OnClientSayCommand(int client, const char[] command, const char[] 
 
 void myHookEvent()
 {
-    PrintToServer("Hooking events");
+    PrintToServer("[DM_MANAGER]Hooking events");
     HookEvent("player_connect", OnPlayerConnect);
     HookEvent("player_spawn", OnPlayerSpawn);
     HookEvent("player_death", OnPlayerDeath);
     HookEvent("player_disconnect", OnPlayerDisconnect);
+    HookEvent("player_hurt", OnPlayerHurt);
+    HookEvent("round_start", OnRoundStart);
 }

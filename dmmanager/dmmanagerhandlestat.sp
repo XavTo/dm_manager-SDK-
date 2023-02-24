@@ -1,5 +1,46 @@
 #include <dmmanager>
 
+WeaponInfo getPrefereWeapon(int client, bool pistol = false)
+{
+    int idDb = getDbId(client);
+    Handle handleError;
+    char error[256];
+    char query[256];
+    int rows = 0;
+    char bufferName[32];
+    WeaponInfo weaponInfo[33];
+    WeaponInfo max = {"", 0, 0};
+
+    strcopy(max.name, 32, pistol ? "weapon_glock" : "weapon_ak47");
+    if (idDb == -1)
+        return max;
+    db = SQL_Connect(NAME_DATABASE, false, error, sizeof(error));
+    if (db == null) {
+        PrintHintText(client, "Failed to connect to database: %s", error);
+        return max;
+    }
+    weaponInfoInit(weaponInfo);
+    Format(query, sizeof(query), "SELECT * FROM `kills` WHERE `killer_id` = %d", idDb);
+    handleError = SQL_Query(db, query);
+    if (CheckError("select users", handleError, false) == false)
+        return max;
+    rows = SQL_GetRowCount(handleError);
+    if (rows == 0)
+        return max;
+    for (int i = 0; i < rows; i++) {
+        SQL_FetchRow(handleError);
+        if (SQL_FetchString(handleError, 1, bufferName, sizeof(bufferName)) > 0) {
+            if (pistol && (strcmp(bufferName, "weapon_p250") != 0 && strcmp(bufferName, "weapon_glock") != 0 && strcmp(bufferName, "weapon_deagle") != 0
+                && strcmp(bufferName, "weapon_elite") != 0 && strcmp(bufferName, "weapon_tec9") != 0 && strcmp(bufferName, "weapon_fiveseven") != 0
+                && strcmp(bufferName, "weapon_cz75a") != 0 && strcmp(bufferName, "weapon_revolver") != 0 && strcmp(bufferName, "weapon_hkp2000") != 0
+                && strcmp(bufferName, "weapon_usp_silencer") != 0))
+                continue;
+            weaponInfoSet(weaponInfo, bufferName, SQL_FetchInt(handleError, 4));
+        }
+    }
+    return weaponInfoGetMax(weaponInfo);
+}
+
 WeaponInfo weaponInfoGetMax(WeaponInfo weaponInfo[33])
 {
     WeaponInfo max = {"No favorite weapon", 0, 0};
@@ -91,8 +132,6 @@ bool verifValidParamDate(char userDate[32])
 {
     Regex date = new Regex("^[0-9]{4}[-/][0-9]{2}[-/][0-9]{2}(_[0-9]{2})?[:]?([0-9]{2})?[:]?([0-9]{2})?$");
 
-    PrintToServer("userDate : %s", userDate);
-    PrintToServer("match : %d", date.Match(userDate));
     if (date.Match(userDate) <= 0)
         return false;
     return true;
@@ -169,9 +208,9 @@ void displayStatDate(Handle handleError, WeaponInfo weaponInfo[33], char date[32
         parseDate(dateEnd, userDateEnd);
     for (int i = 0; i < rows; i++) {
         SQL_FetchRow(handleError);
+        if (SQL_FetchString(handleError, 1, bufferName, sizeof(bufferName)) <= 0)
+            continue;
         if (isWeapon) {
-            if (SQL_FetchString(handleError, 1, bufferName, sizeof(bufferName)) <= 0)
-                continue;
             if (strcmp(bufferName, max.name) != 0)
                 continue;
         }

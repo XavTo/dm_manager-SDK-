@@ -7,10 +7,10 @@ void initDataBase()
 
     db = SQL_Connect(NAME_DATABASE, false, error, sizeof(error));
     if (db == null) {
-        PrintToServer("Failed to connect to database: %s", error);
+        PrintToServer("[DM_MANAGER]Failed to connect to database: %s", error);
         return;
     } else {
-        PrintToServer("Connected to database");
+        PrintToServer("[DM_MANAGER]Connected to database");
     }
     handleError = SQL_Query(db, "CREATE TABLE IF NOT EXISTS `users` (`id` INTEGER PRIMARY KEY AUTOINCREMENT, `steam_id` TEXT, `kills` INTEGER, `deaths` INTEGER, `headshot_give` INTEGER,`headshot_received` INTEGER, `last_seen` DATETIME DEFAULT CURRENT_TIMESTAMP, `first_time_seen` DATETIME DEFAULT CURRENT_TIMESTAMP, `total_time` FLOAT DEFAULT 0)");
     if (CheckError("create table", handleError, true) == false)
@@ -38,7 +38,7 @@ bool insertBotNames(Handle handleError)
         if (CheckError("insert into bot_names", handleError, true) == false)
             return false;
     } else {
-        PrintToServer("No need to insert");
+        PrintToServer("[DM_MANAGER]No need to insert");
         CloseHandle(handleError);
     }
     return true;
@@ -50,12 +50,11 @@ bool CheckError(char string[256], Handle handle, bool close)
 
     if (handle == null) {
         SQL_GetError(db, error, sizeof(error))
-        PrintToServer("Failed to %s: %s", string, error);
+        PrintToServer("[DM_MANAGER]Failed to %s: %s", string, error);
         if (close)
             CloseHandle(handle);
         return false;
     } else {
-        PrintToServer("No error when %s", string);
         if (close)
             CloseHandle(handle);
         return true;
@@ -70,20 +69,20 @@ bool getBotName()
         return false;
     int rows = SQL_GetRowCount(handleError);
     if (rows == 0) {
-        PrintToServer("No bot names in database");
+        PrintToServer("[DM_MANAGER]No bot names in database");
         return false;
     }
     for (int i = 0; i < rows; i++) {
         botStorage[i].assign = false;
         SQL_FetchRow(handleError);
         SQL_FetchString(handleError, 0, botStorage[i].name, MAX_BOTNAME_LENGTH);
-        PrintToServer("Bot name %d: %s", i, botStorage[i].name);
+        PrintToServer("[DM_MANAGER]Bot name %d: %s", i, botStorage[i].name);
     }
     CloseHandle(handleError);
     return true;
 }
 
-void insertUserData(char steamId[32], int clientId, int userId)
+void insertUserData(char steamId[32], int clientId)
 {
     char query[256];
     Handle handleError;
@@ -94,11 +93,10 @@ void insertUserData(char steamId[32], int clientId, int userId)
         return;
     setUsersStorage(clientId, SQL_GetInsertId(handleError), steamId);
     CloseHandle(handleError);
-    PrintToChat(userId, "Hello there, first time we see you !")
-    PrintToServer("Hello there, first time we see you !");
+    PrintToServer("[DM_MANAGER]Hello there, first time we see you !");
 }
 
-void manageUserInDb(char steamId[32], int clientId, int userId)
+void manageUserInDb(char steamId[32], int clientId)
 {
     Handle handleError;
     char query[256];
@@ -107,10 +105,10 @@ void manageUserInDb(char steamId[32], int clientId, int userId)
 
     db = SQL_Connect(NAME_DATABASE, false, error, sizeof(error));
     if (db == null) {
-        PrintToServer("Failed to connect to database: %s", error);
+        PrintToServer("[DM_MANAGER]Failed to connect to database: %s", error);
         return;
     } else {
-        PrintToServer("Connected to database");
+        PrintToServer("[DM_MANAGER]Connected to database");
     }
     Format(query, sizeof(query), "SELECT * FROM `users` WHERE `steam_id` = '%s'", steamId);
     handleError = SQL_Query(db, query);
@@ -118,11 +116,11 @@ void manageUserInDb(char steamId[32], int clientId, int userId)
         return;
     rows = SQL_GetRowCount(handleError);
     if (rows == 0)
-        insertUserData(steamId, clientId, userId);
+        insertUserData(steamId, clientId);
     else {
         SQL_FetchRow(handleError);
         setUsersStorage(clientId, SQL_FetchInt(handleError, 0), steamId);
-        PrintToServer("Welcome back !");
+        PrintToServer("[DM_MANAGER]Welcome back !");
     }
     CloseHandle(handleError);
     db.Close();
@@ -131,7 +129,7 @@ void manageUserInDb(char steamId[32], int clientId, int userId)
 void callbackFuncDefault(Handle owner, Handle hndl, const char[] error, any data)
 {
     if (error[0] != '\0')
-        PrintToServer("SQL Error: %s", error);
+        PrintToServer("[DM_MANAGER]SQL Error: %s", error);
     if (hndl != INVALID_HANDLE)
         CloseHandle(hndl);
 }
@@ -146,5 +144,7 @@ void setUsersStorage(int clientId, int idUser, char steamId[32])
     usersStorage[i].dbId = idUser;
     usersStorage[i].steamId = steamId;
     usersStorage[i].time = GetTime();
+    usersStorage[i].rankIdPic = -1;
+    setRanks(clientId);
 }
 
