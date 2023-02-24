@@ -18,12 +18,18 @@
 #define MENU_DISPLAY_TIME 20
 #define NB_RANK 16
 #define NAME_DATABASE "new_database"
+#define SOUND_LEVEL_UP "dmmanager/level_up.mp3"
+#define SOUND_LEVEL_DOWN "dmmanager/level_down.mp3"
+#define SOUND_HEADSHOT "dmmanager/headshot.mp3"
 
 enum struct BotInfo
 {
     int botId;
     char name[MAX_BOTNAME_LENGTH];
     char weapon[SIZE_STRING_DEFAULT];
+    float spawnPoint[3];
+    int spawnPos;
+    bool spawnSet;
     bool assign;
 }
 
@@ -37,7 +43,9 @@ enum struct UsersInfo
     int mainWeaponAmmo;
     int secondaryWeaponAmmo;
     bool spawnSet;
-    float spawnPoint[3];    
+    int spawnPos;
+    float spawnPoint[3];
+    float spawnAngle[3];
     int time;
     int rankIdPic;
     bool assign;
@@ -54,7 +62,8 @@ BotInfo botStorage[MAX_PLAYER];
 UsersInfo usersStorage[MAX_PLAYER];
 Menu weaponMenu = null;
 Menu spawnMenu = null;
-Menu botMenu;
+Menu botMenu = null;
+Menu voteMenu = null;
 bool onlyHs;
 bool onlyPistol;
 int add_oHealth;
