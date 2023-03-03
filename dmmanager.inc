@@ -68,7 +68,6 @@ bool onlyHs;
 bool onlyPistol;
 int add_oHealth;
 int add_oArmor;
-int add_oRank;
 char m_cFilePath[PLATFORM_MAX_PATH];
 KeyValues kv;
 Handle db;
