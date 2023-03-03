@@ -82,6 +82,21 @@ bool getBotName()
     return true;
 }
 
+int getPlayerRank(int clientId)
+{
+    char query[256];
+    Handle handleError;
+    int rank;
+
+    Format(query, sizeof(query), "SELECT * FROM `users` WHERE `kills` > (SELECT `kills` FROM `users` WHERE `id` = %d)", getDbId(clientId));
+    handleError = SQL_Query(db, query);
+    if (CheckError("select rank", handleError, false) == false)
+        return -1;
+    rank = SQL_GetRowCount(handleError);
+    CloseHandle(handleError);
+    return rank + 1;
+}
+
 void insertUserData(char steamId[32], int clientId)
 {
     char query[256];
@@ -123,6 +138,7 @@ void manageUserInDb(char steamId[32], int clientId)
         PrintToServer("[DM_MANAGER]Welcome back !");
     }
     CloseHandle(handleError);
+    setPlayerNameTop(clientId);
     db.Close();
 }
 

@@ -71,11 +71,36 @@ public Action checkSteamId(Handle timer, int botId)
     return Plugin_Continue;
 }
 
+bool checkIfPosIsFree(float spawnPoint[3])
+{
+    float playersPos[3];
+
+    for (int i = 0; i < MAX_PLAYER; i++) {
+        if (usersStorage[i].clientId == 0 && botStorage[i].botId == 0)
+            continue;
+        if (usersStorage[i].clientId != 0) {
+            GetClientAbsOrigin(usersStorage[i].clientId, playersPos);
+            if (playersPos[0] == spawnPoint[0] && playersPos[1] == spawnPoint[1] && playersPos[2] == spawnPoint[2])
+                return false;
+        }
+        if (botStorage[i].botId != 0) {
+            GetClientAbsOrigin(botStorage[i].botId, playersPos);
+            if (playersPos[0] == spawnPoint[0] && playersPos[1] == spawnPoint[1] && playersPos[2] == spawnPoint[2])
+                return false;
+        }
+    }
+    return true;
+}
+
 void handleTeleport(int clientId, float spawnPoint[3], float spawnAngle[3], int spawnPos)
 {
     int rand = GetRandomInt(0, 4);
     int ind = IsFakeClient(clientId) ? getIndIdBot(clientId) : getIndId(clientId);
 
+    if (1 == 0 && !checkIfPosIsFree(spawnPoint)) {
+        PrintToServer("[DM_MANAGER]Position is not free");
+        return;
+    }
     TeleportEntity(clientId, spawnPoint, spawnAngle, NULL_VECTOR);
     if (IsFakeClient(clientId)) {
         botStorage[ind].spawnPoint[0] = dust2_Pos[spawnPos + rand].x;
@@ -213,6 +238,7 @@ public Action OnPlayerDeath(Event event, const char[] name, bool dontBroadcast)
             weaponName, idUserKiller, (idUserDead != -1 ? idUserDead : 0), headshot);
         SQL_TQuery(db, callbackFuncDefault, buffer, 0, DBPrio_Normal);
         resetWeaponArmor(killerId);
+        setPlayerNameTop(killerId);
         if (headshot == 1)
             EmitSoundToClient(killerId, SOUND_HEADSHOT);
     }
@@ -261,21 +287,21 @@ public Action OnRoundStart(Event event, const char[] name, bool dontBroadcast)
     PrintToServer("[DM_MANAGER]Round start");
     if (onlyPistol) {
         onlyPistol = false;
-        PrintCenterTextAll("All weapons allowed");
+        PrintToChatAll("All weapons allowed");
     } else if (onlyHs) {
         onlyHs = false;
         onlyPistol = true;
-        PrintCenterTextAll("Only pistol allowed");
+        PrintToChatAll("Only pistol allowed");
     } else {
         onlyHs = true;
-        PrintCenterTextAll("Only headshot allowed");
+        PrintToChatAll("Only headshot allowed");
     }
     for (int i = 0; i < MAX_PLAYER; i++) {
         usersStorage[i].mainWeapon = "";
         usersStorage[i].mainWeaponAmmo = 0;
         if (usersStorage[i].assign && IsPlayerAlive(usersStorage[i].clientId))
             CS_RespawnPlayer(usersStorage[i].clientId);
-        if (botStorage[i].assign && IsPlayerAlive(botStorage[i].botId))
+        if (botStorage[i].assign && botStorage[i].botId != 0 && IsClientConnected(botStorage[i].botId) && IsPlayerAlive(botStorage[i].botId))
             CS_RespawnPlayer(botStorage[i].botId);
     }
     createMenuWeapon();
@@ -324,6 +350,47 @@ public Action OnPlayerConnect(Event event, const char[] name, bool dontBroadcast
 {
     CreateTimer(1.5, handleBotConnect, GetEventInt(event, "userid"));
     return Plugin_Continue;
+}
+
+int getActualRank(char name[MAX_NAME_LENGTH])
+{
+    int i = 0;
+
+    if (strncmp(name, "[TOP", 4) != 0)
+        return -1;
+    while (name[i] != ']')
+        i++;
+    i++;
+    while (name[i] == ' ')
+        i++;
+    return StringToInt(name[i]);
+}
+
+void setPlayerNameTop(int playerId)
+{
+    char oldName[MAX_NAME_LENGTH];
+    char tempOldName[MAX_NAME_LENGTH];
+    bool isTemp = false;
+    char newName[MAX_NAME_LENGTH + 10];
+    int rank = getPlayerRank(playerId);
+    int i = 0;
+
+    if (rank == -1 || IsFakeClient(playerId) || playerId == 0)
+        return;
+    GetClientName(playerId, oldName, sizeof(oldName));
+    if (rank == getActualRank(oldName) + 1)
+        return;
+    if (strncmp(oldName, "[TOP", 4) == 0) {
+        while (oldName[i] != ']')
+            i++;
+        i++;
+        while (oldName[i] == ' ')
+            i++;
+        strcopy(tempOldName, sizeof(tempOldName), oldName[i]);
+        isTemp = true;
+    }
+    Format(newName, sizeof(newName), "[TOP%d] %s", rank, isTemp ? tempOldName : oldName);
+    SetClientName(playerId, newName);
 }
 
 public OnClientPostAdminCheck(int botId)
@@ -388,7 +455,7 @@ public Action OnClientSayCommand(int client, const char[] command, const char[] 
         weaponMenu.Display(client, MENU_DISPLAY_TIME);
         return Plugin_Handled;
     }
-    if (strcmp(sArgs, "/spawn", false) == 0) {
+    if (strncmp(sArgs, "/spawn", 6, false) == 0) {
         PrintToServer("[DM_MANAGER]Display spawn menu");
         spawnMenu.Display(client, MENU_DISPLAY_TIME);
         return Plugin_Handled;

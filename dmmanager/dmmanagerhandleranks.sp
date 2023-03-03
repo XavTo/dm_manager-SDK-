@@ -27,16 +27,14 @@ public void OnMapStart()
 
 public void OnThinkPost(int m_iEntity)
 {
-    int m_iLevelTemp[MAX_PLAYER] = {0};
-
-    GetEntDataArray(m_iEntity, add_oRank, m_iLevelTemp, MAX_PLAYER);
-    for (int i = 0; i < MAX_PLAYER; i++) {
-        if (usersStorage[i].assign && usersStorage[i].rankIdPic != -1) {
-            if (usersStorage[i].rankIdPic != m_iLevelTemp[i]) {
-                SetEntData(m_iEntity, add_oRank + (i + 1) * 4, usersStorage[i].rankIdPic);
+    int add_orank = FindSendPropInfo("CCSPlayerResource", "m_iCompetitiveRanking");
+    for (int i = 1; i < MAX_PLAYER; i++) {
+        if (usersStorage[i - 1].assign && usersStorage[i - 1].rankIdPic != -1) {
+            if (GetEntData(m_iEntity, add_orank + (i * 4)) != usersStorage[i - 1].rankIdPic) {
+                SetEntData(m_iEntity, add_orank + (i * 4), usersStorage[i - 1].rankIdPic);
             }
-		}
-	}
+        }
+    }
 }
 
 void setRanks(int clientId)
@@ -46,7 +44,8 @@ void setRanks(int clientId)
     int id = getIndId(clientId);
 
     weaponInfo = getPrefereWeapon(clientId);
-    if (strcmp(weaponInfo.name, "weapon_ak47") == 0 || strcmp(weaponInfo.name, "weapon_m4a1") == 0 || strcmp(weaponInfo.name, "weapon_awp") == 0)
+    if (strcmp(weaponInfo.name, "weapon_ak47") == 0 || strcmp(weaponInfo.name, "weapon_m4a1") == 0
+        || strcmp(weaponInfo.name, "weapon_awp") == 0 || strcmp(weaponInfo.name, "weapon_deagle") == 0)
         strcopy(buffer, sizeof(buffer), weaponInfo.name);
     else
         strcopy(buffer, sizeof(buffer), "undefined");
