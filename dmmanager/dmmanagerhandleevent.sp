@@ -144,6 +144,18 @@ void manageRespawnWeapon(int clientId, int ind)
         SetEntPropVector(usersStorage[ind].clientId, Prop_Data, "m_vecOrigin", usersStorage[ind].spawnPoint);
 }
 
+void displayInfoMode(int clientId)
+{
+    if (IsFakeClient(clientId))
+        return;
+    if (onlyPistol)
+        PrintHintText(clientId, "Only pistol allowed");
+    else if (onlyHs)
+        PrintHintText(clientId, "Only headshot allowed");
+    else
+        PrintHintText(clientId, "All weapons allowed");
+}
+
 public Action OnPlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
     int clientId = GetClientOfUserId(GetEventInt(event, "userid"));
@@ -183,9 +195,11 @@ public Action OnPlayerSpawn(Event event, const char[] name, bool dontBroadcast)
         }
     } else if (ind != -1) {
         manageRespawnWeapon(clientId, ind);
+        displayInfoMode(clientId);
     } else {
         PrintUsersStorage();
         weaponMenu.Display(clientId, MENU_DISPLAY_TIME);
+        displayInfoMode(clientId);
     }
     if (!IsFakeClient(clientId) && ind != -1 && usersStorage[ind].spawnSet)
         handleTeleport(clientId, usersStorage[ind].spawnPoint, usersStorage[ind].spawnAngle, usersStorage[ind].spawnPos);
@@ -449,6 +463,10 @@ public Action OnClientSayCommand(int client, const char[] command, const char[] 
 {
     char args[5][32] = {"\0", "\0", "\0", "\0", "\0"};
 
+    if (strncmp(command, "/help", 5, false) == 0) {
+        PrintHintText(client, "DM Manager commands: /help, /weapon, /gun, /spawn, /bot, /stats");
+        return Plugin_Continue;
+    }
     if (strcmp(sArgs, "/weapon", false) == 0 || strcmp(sArgs, "/weapons", false) == 0 || strcmp(sArgs, "/w", false) == 0 || strcmp(sArgs, "/gun", false) == 0
         || strcmp(sArgs, "/guns", false) == 0 || strcmp(sArgs, "/g", false) == 0) {
         PrintToServer("[DM_MANAGER]Display weapon menu");

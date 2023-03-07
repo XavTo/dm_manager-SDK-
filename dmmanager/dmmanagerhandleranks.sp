@@ -28,6 +28,7 @@ public void OnMapStart()
 public void OnThinkPost(int m_iEntity)
 {
     int add_orank = FindSendPropInfo("CCSPlayerResource", "m_iCompetitiveRanking");
+
     for (int i = 1; i < MAX_PLAYER; i++) {
         if (usersStorage[i - 1].assign && usersStorage[i - 1].rankIdPic != -1) {
             if (GetEntData(m_iEntity, add_orank + (i * 4)) != usersStorage[i - 1].rankIdPic) {

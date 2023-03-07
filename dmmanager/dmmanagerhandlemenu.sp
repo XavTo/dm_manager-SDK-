@@ -211,6 +211,7 @@ public void Handle_VoteResults(Menu menu, int num_votes, int num_clients, const 
         if (strcmp(map, "No") == 0)
             return;
         PrintToServer("[DM_MANAGER]Vote for change bot spawn point to %s", map);
+        PrintToChatAll("Vote for change bot spawn point to %s", map);
         setBotSpawnPoint(map);
     }
 }
